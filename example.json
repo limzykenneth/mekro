@@ -1,0 +1,10 @@
+[
+    {
+        "command": "ls",
+        "arguments": ["-la"]
+    },
+    {
+        "command": "pwd",
+        "arguments": []
+    }
+]
