@@ -1,4 +1,3 @@
-use std::process::Command;
 use std::fs;
 use std::io;
 use tui::{
@@ -13,19 +12,10 @@ use std::time::Duration;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
-mod configuration;
-use configuration::configuration::Configurations;
+mod commands;
+use commands::commands::Commands;
 
 fn main() -> Result<(), io::Error> {
-	let mut child = Command::new("ls")
-		.spawn()
-		.expect("Failed to execute command");
-
-	let ecode = child.wait()
-		.expect("Failed to wait");
-
-	assert!(ecode.success());
-
 	let contents = fs::read_to_string("./example.json")
 		.expect("Something went wrong reading the file");
 
@@ -33,7 +23,8 @@ fn main() -> Result<(), io::Error> {
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
 
-	let mut configurations = Configurations::new(&contents);
+	let mut commands = Commands::new(&contents);
+	commands.run();
 
 	enable_raw_mode().unwrap();
 	loop{
@@ -49,15 +40,13 @@ fn main() -> Result<(), io::Error> {
 					code: KeyCode::Down,
 					modifiers: KeyModifiers::NONE
 				}) => {
-					// println!("Down");
-					configurations.next();
+					commands.next();
 				},
 				Event::Key(KeyEvent {
 					code: KeyCode::Up,
 					modifiers: KeyModifiers::NONE
 				}) => {
-					// println!("Up");
-					configurations.previous();
+					commands.previous();
 				},
 				_ => ()
 			};
@@ -66,7 +55,7 @@ fn main() -> Result<(), io::Error> {
 		}
 
 		terminal.draw(|f| {
-			let items = configurations.items.clone();
+			let items = commands.items.clone();
 
 			let list = List::new(items)
 				.block(Block::default()
@@ -80,7 +69,7 @@ fn main() -> Result<(), io::Error> {
 				.highlight_symbol(">>");
 
 			let size = f.size();
-			f.render_stateful_widget(list, size, &mut configurations.state);
+			f.render_stateful_widget(list, size, &mut commands.state);
 		})?;
 	}
 

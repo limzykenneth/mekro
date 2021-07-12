@@ -1,24 +1,39 @@
-pub mod configuration{
+pub mod commands{
 	use serde::{Serialize, Deserialize};
 	use tui::{
 		widgets::{ListState, ListItem},
 		style::{Style},
 	};
 	use serde_json;
+	use std::process::{self, Child, ChildStdout};
 
 	#[derive(Serialize, Deserialize, Debug)]
-	pub struct Configuration<'a>{
+	pub struct Command<'a>{
 		pub command: &'a str,
-		pub arguments: Vec<&'a str>
+		pub arguments: Vec<&'a str>,
 	}
 
-	pub struct Configurations<'a>{
+	impl Command<'_>{
+		fn run(&self) -> Child {
+			let mut child = process::Command::new(self.command)
+				.args(&self.arguments)
+				.spawn()
+				.expect("Failed to execute command");
+
+			child
+		}
+	}
+
+	pub struct Commands<'a>{
 		pub items: Vec<ListItem<'a>>,
-		pub state: ListState
+		pub state: ListState,
+		pub commands: Vec<Command<'a>>,
+		pub processes: Vec<Child>,
+		pub stdouts: Vec<ChildStdout>
 	}
 
-	impl Configurations<'_>{
-		pub fn new(config: &str) -> Configurations{
+	impl Commands<'_>{
+		pub fn new(config: &str) -> Commands {
 			let values = parse_configuration(config);
 			let items: Vec<ListItem> = values.iter()
 				.map(|v| {
@@ -27,9 +42,20 @@ pub mod configuration{
 				})
 				.collect();
 
-			Configurations{
+			Commands {
 				items,
-				state: ListState::default()
+				state: ListState::default(),
+				commands: values,
+				processes: vec!(),
+				stdouts: vec!()
+			}
+		}
+
+		pub fn run(&mut self){
+			for command in &self.commands {
+				let mut child = command.run();
+				// self.stdouts.push(child.stdout.take().unwrap());
+				self.processes.push(child);
 			}
 		}
 
@@ -66,7 +92,7 @@ pub mod configuration{
 		}
 	}
 
-	fn parse_configuration(data: &str) -> Vec<Configuration> {
+	fn parse_configuration(data: &str) -> Vec<Command> {
 		serde_json::from_str(data).unwrap()
 	}
 }
