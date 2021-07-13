@@ -1,68 +1,72 @@
 pub mod commands{
-	use serde::{Serialize, Deserialize};
 	use tui::{
 		widgets::{ListState, ListItem},
 		style::{Style},
 	};
-	use serde_json;
-	use std::process::{self, Child, ChildStdout};
+	use tokio::process::{Command as Cmd, Child};
+	use crate::configuration::configuration::{
+		Configuration,
+		parse_configuration
+	};
 
-	#[derive(Serialize, Deserialize, Debug)]
 	pub struct Command<'a>{
-		pub command: &'a str,
-		pub arguments: Vec<&'a str>,
+		pub item: ListItem<'a>,
+		pub child_process: Option<Child>,
+		command: &'a str,
+		arguments: Vec<&'a str>
 	}
 
 	impl Command<'_>{
-		fn run(&self) -> Child {
-			let mut child = process::Command::new(self.command)
+		fn new<'a>(config: &Configuration<'a>) -> Command<'a>{
+			Command {
+				item: ListItem::new(config.command)
+					.style(Style::default()),
+				child_process: None,
+				command: config.command,
+				arguments: config.arguments.clone()
+			}
+		}
+
+		fn run(&mut self){
+			let child = Cmd::new(self.command)
 				.args(&self.arguments)
 				.spawn()
 				.expect("Failed to execute command");
 
-			child
+			self.child_process = Some(child);
 		}
 	}
 
 	pub struct Commands<'a>{
-		pub items: Vec<ListItem<'a>>,
 		pub state: ListState,
-		pub commands: Vec<Command<'a>>,
-		pub processes: Vec<Child>,
-		pub stdouts: Vec<ChildStdout>
+		pub commands: Vec<Command<'a>>
 	}
 
 	impl Commands<'_>{
 		pub fn new(config: &str) -> Commands {
-			let values = parse_configuration(config);
-			let items: Vec<ListItem> = values.iter()
+			let values: Vec<Configuration> = parse_configuration(config);
+			let commands: Vec<Command> = values.iter()
 				.map(|v| {
-					ListItem::new(v.command)
-						.style(Style::default())
+					Command::new(v)
 				})
 				.collect();
 
 			Commands {
-				items,
 				state: ListState::default(),
-				commands: values,
-				processes: vec!(),
-				stdouts: vec!()
+				commands: commands
 			}
 		}
 
 		pub fn run(&mut self){
-			for command in &self.commands {
-				let mut child = command.run();
-				// self.stdouts.push(child.stdout.take().unwrap());
-				self.processes.push(child);
+			for command in &mut self.commands {
+				command.run();
 			}
 		}
 
 		pub fn next(&mut self) {
 			let i = match self.state.selected() {
 				Some(i) => {
-					if i >= self.items.len() - 1 {
+					if i >= self.commands.len() - 1 {
 						0
 					} else {
 						i + 1
@@ -77,7 +81,7 @@ pub mod commands{
 			let i = match self.state.selected() {
 				Some(i) => {
 					if i == 0 {
-						self.items.len() - 1
+						self.commands.len() - 1
 					} else {
 						i - 1
 					}
@@ -90,9 +94,5 @@ pub mod commands{
 		pub fn unselect(&mut self) {
 			self.state.select(None);
 		}
-	}
-
-	fn parse_configuration(data: &str) -> Vec<Command> {
-		serde_json::from_str(data).unwrap()
 	}
 }
