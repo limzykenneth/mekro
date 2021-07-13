@@ -21,7 +21,7 @@ pub mod commands{
 		pub stdout: Option<Lines<BufReader<ChildStdout>>>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
-		pub output: String
+		pub output: Vec<String>
 	}
 
 	impl Command<'_>{
@@ -31,7 +31,7 @@ pub mod commands{
 				stdout: None,
 				command: config.command,
 				arguments: config.arguments.clone(),
-				output: String::from("")
+				output: vec!()
 			}
 		}
 
@@ -58,8 +58,8 @@ pub mod commands{
 			// });
 
 			while let Some(line) = stdout.next_line().await.unwrap() {
-				self.output.push_str(&line);
-				self.output.push_str("\n");
+				self.output.push(line);
+				// self.output.push_str("\n");
 			}
 		}
 	}

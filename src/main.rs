@@ -5,12 +5,13 @@ use tui::{
 	layout::{Constraint, Corner, Direction, Layout},
 	style::{Color, Modifier, Style},
 	text::{Span, Spans},
-	widgets::{Block, Borders, List},
+	widgets::{Block, Borders, List, Paragraph, Wrap, Clear},
 	Terminal
 };
 use std::time::Duration;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::execute;
 
 mod configuration;
 mod commands;
@@ -28,11 +29,13 @@ async fn main() -> Result<(), io::Error> {
 	// 	print!("{}", command.output);
 	// }
 
-	let stdout = io::stdout();
+	let mut stdout = io::stdout();
+	execute!(stdout, EnterAlternateScreen).unwrap();
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
 
 	enable_raw_mode().unwrap();
+
 	loop{
 		if poll(Duration::from_millis(100)).unwrap() {
 			// It's guaranteed that `read` wont block, because `poll` returned
@@ -41,7 +44,14 @@ async fn main() -> Result<(), io::Error> {
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('c'),
 					modifiers: KeyModifiers::CONTROL
-				}) => break,
+				}) => {
+					disable_raw_mode().unwrap();
+					execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen
+                    ).unwrap();
+					break;
+				},
 				Event::Key(KeyEvent {
 					code: KeyCode::Down,
 					modifiers: KeyModifiers::NONE
@@ -61,6 +71,12 @@ async fn main() -> Result<(), io::Error> {
 		}
 
 		terminal.draw(|f| {
+
+			let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+                .split(f.size());
+
 			let list = List::new(commands.items.clone())
 				.block(Block::default()
 					.title("Micro Manage")
@@ -72,11 +88,31 @@ async fn main() -> Result<(), io::Error> {
 					.add_modifier(Modifier::BOLD))
 				.highlight_symbol(">>");
 
-			let size = f.size();
-			f.render_stateful_widget(list, size, &mut commands.state);
+			f.render_stateful_widget(list, chunks[0], &mut commands.state);
+
+			let output: Vec<Spans> = match commands.state.selected() {
+					Some(i) => {
+						commands.commands[i].output.iter()
+							.map(|line| {
+								Spans::from(Span::raw(line))
+							})
+							.collect()
+					}
+					None => vec![Spans::from(Span::raw("Please select a process"))]
+			};
+
+			let block = Paragraph::new(output)
+				.block(Block::default()
+					.title("stdout")
+					.borders(Borders::ALL)
+				)
+				.style(Style::default()
+					.fg(Color::Black))
+				.wrap(Wrap {trim: true});
+
+			f.render_widget(block, chunks[1]);
 		})?;
 	}
 
-	disable_raw_mode().unwrap();
 	Ok(())
 }
