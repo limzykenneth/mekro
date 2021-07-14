@@ -2,10 +2,10 @@ use std::fs;
 use std::io;
 use tui::{
 	backend::CrosstermBackend,
-	layout::{Constraint, Corner, Direction, Layout},
+	layout::{Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
 	text::{Span, Spans},
-	widgets::{Block, Borders, List, Paragraph, Wrap, Clear},
+	widgets::{Block, Borders, List, Paragraph, Wrap},
 	Terminal
 };
 use std::time::Duration;
@@ -24,10 +24,6 @@ async fn main() -> Result<(), io::Error> {
 
 	let mut commands = Commands::new(&contents);
 	commands.run().await;
-
-	// for command in commands.commands{
-	// 	print!("{}", command.output);
-	// }
 
 	let mut stdout = io::stdout();
 	execute!(stdout, EnterAlternateScreen).unwrap();
@@ -113,6 +109,8 @@ async fn main() -> Result<(), io::Error> {
 			f.render_widget(block, chunks[1]);
 		})?;
 	}
+
+	commands.kill().await;
 
 	Ok(())
 }

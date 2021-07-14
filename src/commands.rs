@@ -10,6 +10,8 @@ pub mod commands{
 	};
 	use tokio::io::{BufReader, AsyncBufReadExt, Lines};
 	use std::process::Stdio;
+	use std::sync::Arc;
+	use std::sync::Mutex;
 	use crate::configuration::configuration::{
 		Configuration,
 		parse_configuration
@@ -17,7 +19,7 @@ pub mod commands{
 
 	#[derive(Debug)]
 	pub struct Command<'a>{
-		pub child_process: Option<Child>,
+		pub child_process: Option<Arc<Mutex<Child>>>,
 		pub stdout: Option<Lines<BufReader<ChildStdout>>>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
@@ -48,18 +50,25 @@ pub mod commands{
 				 .expect("child did not have a handle to stdout");
 
 			let mut stdout = BufReader::new(stdout).lines();
-			self.child_process = Some(child);
-
-			// tokio::spawn(async move {
-			// 	let status = child.wait().await
-			// 		.expect("child process encountered an error");
-
-			// 	println!("child status was: {}", status);
-			// });
+			self.child_process = Some(Arc::new(Mutex::new(child)));
 
 			while let Some(line) = stdout.next_line().await.unwrap() {
 				self.output.push(line);
-				// self.output.push_str("\n");
+			}
+		}
+
+		async fn kill(&self){
+			let child = self.child_process.clone();
+			let child = child.unwrap();
+			let mut child = child.lock().unwrap();
+
+			match child.kill().await {
+				Ok(()) => (),
+				Err(e) => {
+					if e.kind() != std::io::ErrorKind::InvalidInput {
+						println!("{:?}", e.kind());
+					}
+				}
 			}
 		}
 	}
@@ -95,6 +104,12 @@ pub mod commands{
 		pub async fn run(&mut self){
 			for command in &mut self.commands {
 				command.run().await;
+			}
+		}
+
+		pub async fn kill(&mut self){
+			for command in &self.commands {
+				command.kill().await;
 			}
 		}
 
