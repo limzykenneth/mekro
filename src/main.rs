@@ -49,6 +49,12 @@ async fn main() -> Result<(), io::Error> {
 					break;
 				},
 				Event::Key(KeyEvent {
+					code: KeyCode::Esc,
+					modifiers: KeyModifiers::NONE
+				}) => {
+					commands.unselect();
+				},
+				Event::Key(KeyEvent {
 					code: KeyCode::Down,
 					modifiers: KeyModifiers::NONE
 				}) => {
@@ -60,6 +66,17 @@ async fn main() -> Result<(), io::Error> {
 				}) => {
 					commands.previous();
 				},
+				Event::Key(KeyEvent {
+					code: KeyCode::Char('k'),
+					modifiers: KeyModifiers::NONE
+				}) => {
+					match commands.state.selected() {
+						Some(i) => {
+							commands.commands[i].kill().await;
+						}
+						None => ()
+					}
+				},
 				_ => ()
 			};
 		} else {
@@ -67,7 +84,6 @@ async fn main() -> Result<(), io::Error> {
 		}
 
 		terminal.draw(|f| {
-
 			let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
@@ -88,9 +104,9 @@ async fn main() -> Result<(), io::Error> {
 
 			let output: Vec<Spans> = match commands.state.selected() {
 					Some(i) => {
-						commands.commands[i].output.iter()
+						commands.commands[i].output.lock().unwrap().iter()
 							.map(|line| {
-								Spans::from(Span::raw(line))
+								Spans::from(Span::raw(line.clone()))
 							})
 							.collect()
 					}

@@ -9,9 +9,10 @@ pub mod commands{
 		ChildStdout
 	};
 	use tokio::io::{BufReader, AsyncBufReadExt, Lines};
+	use tokio::sync::mpsc::{self, Sender, Receiver};
+	use tokio::sync::{Mutex as TokioMutex};
 	use std::process::Stdio;
-	use std::sync::Arc;
-	use std::sync::Mutex;
+	use std::sync::{Arc, Mutex};
 	use crate::configuration::configuration::{
 		Configuration,
 		parse_configuration
@@ -23,17 +24,23 @@ pub mod commands{
 		pub stdout: Option<Lines<BufReader<ChildStdout>>>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
-		pub output: Vec<String>
+		pub output: Arc<Mutex<Vec<String>>>,
+		pub tx: Arc<Sender<String>>,
+		pub rx: Arc<TokioMutex<Receiver<String>>>
 	}
 
 	impl Command<'_>{
 		fn new<'a>(config: &Configuration<'a>) -> Command<'a>{
+			let (tx, rx) = mpsc::channel(100);
+
 			Command {
 				child_process: None,
 				stdout: None,
 				command: config.command,
 				arguments: config.arguments.clone(),
-				output: vec!()
+				output: Arc::new(Mutex::new(vec!())),
+				tx: Arc::new(tx),
+				rx: Arc::new(TokioMutex::new(rx))
 			}
 		}
 
@@ -52,12 +59,25 @@ pub mod commands{
 			let mut stdout = BufReader::new(stdout).lines();
 			self.child_process = Some(Arc::new(Mutex::new(child)));
 
-			while let Some(line) = stdout.next_line().await.unwrap() {
-				self.output.push(line);
-			}
+			let tx = self.tx.clone();
+			tokio::spawn(async move {
+				while let Some(line) = stdout.next_line().await.unwrap() {
+					tx.send(line).await.unwrap();
+				}
+			});
+
+			let rx = self.rx.clone();
+			let output = self.output.clone();
+			tokio::spawn(async move {
+				let mut rx = rx.lock().await;
+				while let Some(message) = rx.recv().await {
+					let mut output = output.lock().unwrap();
+					output.push(message);
+				}
+			});
 		}
 
-		async fn kill(&self){
+		pub async fn kill(&self){
 			let child = self.child_process.clone();
 			let child = child.unwrap();
 			let mut child = child.lock().unwrap();
