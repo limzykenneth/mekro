@@ -4,7 +4,7 @@ use tui::{
 	backend::CrosstermBackend,
 	layout::{Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
-	text::{Span, Spans},
+	text::{Span, Spans, Text},
 	widgets::{Block, Borders, List, Paragraph, Wrap},
 	Terminal
 };
@@ -113,7 +113,7 @@ async fn main() -> Result<(), io::Error> {
 					None => vec![Spans::from(Span::raw("Please select a process"))]
 			};
 
-			let block = Paragraph::new(output)
+			let block = Paragraph::new(Text::from(output))
 				.block(Block::default()
 					.title("stdout")
 					.borders(Borders::ALL)
