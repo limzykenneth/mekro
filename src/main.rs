@@ -108,6 +108,19 @@ async fn main() -> Result<(), io::Error> {
 						None => ()
 					}
 				},
+				// Restart
+				Event::Key(KeyEvent {
+					code: KeyCode::Char('r'),
+					modifiers: KeyModifiers::NONE
+				}) => {
+					match commands.state.selected() {
+						Some(i) => {
+							commands.commands[i].kill().await;
+							commands.commands[i].run().await;
+						}
+						None => ()
+					}
+				},
 				_ => ()
 			};
 		} else {
