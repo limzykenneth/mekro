@@ -1,5 +1,6 @@
 use std::fs;
 use std::io;
+use std::cmp::max;
 use tui::{
 	backend::CrosstermBackend,
 	layout::{Constraint, Direction, Layout},
@@ -157,14 +158,28 @@ async fn main() -> Result<(), io::Error> {
 					None => vec![Spans::from(Span::raw("Please select a process"))]
 			};
 
+			// Height of the viewport
+			// chunks[1].height-2
+			// Width of the viewport
+			// chunks[1].width-2
+
+			// Pre-wrap width of text
+			// output[i].width()
+
+			// println!("{:?}", chunks[1].width-2);
+			// println!("{:?}", output[0].width());
+
+			let scroll_height = max(output.len() as i32 - (chunks[1].height-2) as i32, 0) as u16;
+
 			let block = Paragraph::new(Text::from(output))
+				.scroll((scroll_height, 0))
 				.block(Block::default()
 					.title("stdout")
 					.borders(Borders::ALL)
 				)
 				.style(Style::default()
-					.fg(Color::Black))
-				.wrap(Wrap {trim: true});
+					.fg(Color::Black));
+				// .wrap(Wrap {trim: true});
 
 			f.render_widget(block, chunks[1]);
 		})?;
