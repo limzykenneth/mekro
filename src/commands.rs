@@ -44,7 +44,10 @@ pub mod commands{
 			}
 		}
 
-		async fn run(&mut self){
+		pub async fn run(&mut self){
+			// Clear output vector
+			self.output.clone().lock().unwrap().clear();
+
 			let mut cmd = Cmd::new(self.command);
 			cmd.stdout(Stdio::piped());
 			cmd.args(&self.arguments);

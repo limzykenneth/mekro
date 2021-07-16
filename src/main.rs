@@ -54,6 +54,8 @@ async fn main() -> Result<(), io::Error> {
 				}) => {
 					commands.unselect();
 				},
+
+				// Navigate between the different tasks
 				Event::Key(KeyEvent {
 					code: KeyCode::Down,
 					modifiers: KeyModifiers::NONE
@@ -66,6 +68,35 @@ async fn main() -> Result<(), io::Error> {
 				}) => {
 					commands.previous();
 				},
+
+				// Navigate between pages
+				Event::Key(KeyEvent {
+					code: KeyCode::Left,
+					modifiers: KeyModifiers::NONE
+				}) => {
+
+				},
+				Event::Key(KeyEvent {
+					code: KeyCode::Right,
+					modifiers: KeyModifiers::NONE
+				}) => {
+
+				},
+
+				// Action on the selected task
+				// Start
+				Event::Key(KeyEvent {
+					code: KeyCode::Char('s'),
+					modifiers: KeyModifiers::NONE
+				}) => {
+					match commands.state.selected() {
+						Some(i) => {
+							commands.commands[i].run().await;
+						}
+						None => ()
+					}
+				},
+				// Kill
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('k'),
 					modifiers: KeyModifiers::NONE
