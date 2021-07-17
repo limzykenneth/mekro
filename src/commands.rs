@@ -62,18 +62,33 @@ pub mod commands{
 				.spawn()
 				.expect("Failed to execute command");
 
-			let stdout = child.stdout.take()
-				 .expect("child did not have a handle to stdout");
-
-			let mut stdout = BufReader::new(stdout).lines();
-			self.child_process = Some(Arc::new(Mutex::new(child)));
-
-			let tx = self.tx.clone();
-			tokio::spawn(async move {
-				while let Some(line) = stdout.next_line().await.unwrap() {
-					tx.send(line).await.unwrap();
+			match child.stdout.take() {
+				Some(stdout) => {
+					let mut stdout = BufReader::new(stdout).lines();
+					let tx = self.tx.clone();
+					tokio::spawn(async move {
+						while let Some(line) = stdout.next_line().await.unwrap() {
+							tx.send(line).await.unwrap();
+						}
+					});
 				}
-			});
+				None => ()
+			}
+
+			match child.stderr.take() {
+				Some(stderr) => {
+					let mut stderr = BufReader::new(stderr).lines();
+					let tx = self.tx.clone();
+					tokio::spawn(async move {
+						while let Some(line) = stderr.next_line().await.unwrap() {
+							tx.send(line).await.unwrap();
+						}
+					});
+				}
+				None => ()
+			}
+
+			self.child_process = Some(Arc::new(Mutex::new(child)));
 
 			let rx = self.rx.clone();
 			let output = self.output.clone();
