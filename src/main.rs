@@ -1,6 +1,12 @@
-use std::fs;
-use std::io;
-use std::cmp::max;
+mod configuration;
+mod commands;
+
+use std::{
+	fs,
+	io,
+	cmp::max,
+	time::Duration
+};
 use tui::{
 	backend::CrosstermBackend,
 	layout::{Constraint, Direction, Layout},
@@ -9,15 +15,23 @@ use tui::{
 	widgets::{Block, Borders, List, Paragraph, Wrap},
 	Terminal
 };
-use std::time::Duration;
-use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::execute;
-use textwrap::{wrap, Options as WrapOptions};
-use textwrap::wrap_algorithms::FirstFit;
-
-mod configuration;
-mod commands;
+use crossterm::{
+	event::{
+		poll, read, Event, KeyCode, KeyEvent, KeyModifiers
+	},
+	terminal::{
+		disable_raw_mode,
+		enable_raw_mode,
+		EnterAlternateScreen,
+		LeaveAlternateScreen
+	},
+	execute
+};
+use textwrap::{
+	wrap,
+	Options as WrapOptions,
+	wrap_algorithms::FirstFit
+};
 use commands::commands::Commands;
 
 #[tokio::main]

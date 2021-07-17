@@ -3,16 +3,22 @@ pub mod commands{
 		widgets::{ListState, ListItem},
 		style::{Style},
 	};
-	use tokio::process::{
-		Command as Cmd,
-		Child,
-		ChildStdout
+	use tokio::{
+		process::{
+			Command as Cmd,
+			Child,
+			ChildStdout
+		},
+		io::{BufReader, AsyncBufReadExt, Lines},
+		sync::{
+			mpsc::{channel as mpscChannel, Sender, Receiver},
+			Mutex as TokioMutex
+		}
 	};
-	use tokio::io::{BufReader, AsyncBufReadExt, Lines};
-	use tokio::sync::mpsc::{self, Sender, Receiver};
-	use tokio::sync::{Mutex as TokioMutex};
-	use std::process::Stdio;
-	use std::sync::{Arc, Mutex};
+	use std::{
+		process::Stdio,
+		sync::{Arc, Mutex}
+	};
 	use crate::configuration::configuration::{
 		Configuration,
 		parse_configuration
@@ -31,7 +37,7 @@ pub mod commands{
 
 	impl Command<'_>{
 		fn new<'a>(config: &Configuration<'a>) -> Command<'a>{
-			let (tx, rx) = mpsc::channel(100);
+			let (tx, rx) = mpscChannel(100);
 
 			Command {
 				child_process: None,
