@@ -5,7 +5,8 @@ use std::{
 	fs,
 	io,
 	cmp::max,
-	time::Duration
+	time::Duration,
+	process
 };
 use tui::{
 	backend::CrosstermBackend,
@@ -32,12 +33,36 @@ use textwrap::{
 	Options as WrapOptions,
 	wrap_algorithms::FirstFit
 };
+use clap::{Arg, App};
 use commands::commands::Commands;
 
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {
-	let contents = fs::read_to_string("./example.json")
-		.expect("Something went wrong reading the file");
+	let matches = App::new("Micro-manage")
+		.version("0.1.0")
+		.author("Kenneth Lim <limzy.kenneth@gmail.com>")
+		.about("Manage your micro services in dev")
+		.arg(Arg::with_name("config")
+			.short("c")
+			.long("config")
+			.value_name("FILE")
+			.help("Set path to configuration file")
+			.takes_value(true)
+		)
+		.get_matches();
+	let config_path = matches.value_of("config").unwrap_or("./example.json");
+	let contents = match fs::read_to_string(config_path) {
+		Ok(result) => result,
+		Err(e) => {
+			if e.kind() == io::ErrorKind::NotFound {
+				println!("Config file not found");
+				process::exit(1);
+			}else{
+				println!("Something went wrong reading the config file");
+				process::exit(1);
+			}
+		}
+	};
 
 	let mut commands = Commands::new(&contents);
 	commands.run().await;
