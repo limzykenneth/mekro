@@ -13,6 +13,8 @@ use std::time::Duration;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::execute;
+use textwrap::{wrap, Options as WrapOptions};
+use textwrap::wrap_algorithms::FirstFit;
 
 mod configuration;
 mod commands;
@@ -147,10 +149,14 @@ async fn main() -> Result<(), io::Error> {
 
 			f.render_stateful_widget(list, chunks[0], &mut commands.state);
 
+			let mut paragraph_height = 0;
 			let output: Vec<Spans> = match commands.state.selected() {
 					Some(i) => {
 						commands.commands[i].output.lock().unwrap().iter()
 							.map(|line| {
+								let options = WrapOptions::new((chunks[1].width-2).into())
+									.wrap_algorithm(FirstFit);
+								paragraph_height += wrap(&line, &options).len();
 								Spans::from(Span::raw(line.clone()))
 							})
 							.collect()
@@ -158,18 +164,8 @@ async fn main() -> Result<(), io::Error> {
 					None => vec![Spans::from(Span::raw("Please select a process"))]
 			};
 
-			// Height of the viewport
-			// chunks[1].height-2
-			// Width of the viewport
-			// chunks[1].width-2
 
-			// Pre-wrap width of text
-			// output[i].width()
-
-			// println!("{:?}", chunks[1].width-2);
-			// println!("{:?}", output[0].width());
-
-			let scroll_height = max(output.len() as i32 - (chunks[1].height-2) as i32, 0) as u16;
+			let scroll_height = max(paragraph_height as i32 - (chunks[1].height-2) as i32, 0) as u16;
 
 			let block = Paragraph::new(Text::from(output))
 				.scroll((scroll_height, 0))
@@ -178,8 +174,8 @@ async fn main() -> Result<(), io::Error> {
 					.borders(Borders::ALL)
 				)
 				.style(Style::default()
-					.fg(Color::Black));
-				// .wrap(Wrap {trim: true});
+					.fg(Color::Black))
+				.wrap(Wrap {trim: true});
 
 			f.render_widget(block, chunks[1]);
 		})?;
