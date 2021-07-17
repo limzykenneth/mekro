@@ -13,7 +13,7 @@ use tui::{
 	layout::{Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
 	text::{Span, Spans, Text},
-	widgets::{Block, Borders, List, Paragraph, Wrap},
+	widgets::{Block, Borders, List, Paragraph},
 	Terminal
 };
 use crossterm::{
@@ -189,32 +189,41 @@ async fn main() -> Result<(), io::Error> {
 			f.render_stateful_widget(list, chunks[0], &mut commands.state);
 
 			let mut paragraph_height = 0;
-			let output: Vec<Spans> = match commands.state.selected() {
-					Some(i) => {
-						commands.commands[i].output.lock().unwrap().iter()
-							.map(|line| {
-								let options = WrapOptions::new((chunks[1].width-2).into())
-									.wrap_algorithm(FirstFit);
-								paragraph_height += wrap(&line, &options).len();
-								Spans::from(Span::raw(line.clone()))
-							})
-							.collect()
-					}
-					None => vec![Spans::from(Span::raw("Please select a process"))]
+			let mut display_text: Vec<Spans> = vec!();
+			let command_output: Vec<String>;
+
+			match commands.state.selected() {
+				Some(i) => {
+					command_output = commands.commands[i].output.lock().unwrap().to_vec();
+					command_output.iter()
+						.for_each(|line| {
+							let options = WrapOptions::new((chunks[1].width-2) as usize)
+								.wrap_algorithm(FirstFit);
+							let wrapped_lines = wrap(&line, &options);
+
+							paragraph_height += wrapped_lines.len();
+
+							for line in wrapped_lines {
+								display_text.push(Spans::from(Span::raw(line)))
+							}
+						});
+				}
+				None => {
+					display_text = vec![Spans::from(Span::raw("Please select a process"))];
+				}
 			};
 
 
 			let scroll_height = max(paragraph_height as i32 - (chunks[1].height-2) as i32, 0) as u16;
 
-			let block = Paragraph::new(Text::from(output))
+			let block = Paragraph::new(Text::from(display_text))
 				.scroll((scroll_height, 0))
 				.block(Block::default()
 					.title("stdout")
 					.borders(Borders::ALL)
 				)
 				.style(Style::default()
-					.fg(Color::Black))
-				.wrap(Wrap {trim: true});
+					.fg(Color::Black));
 
 			f.render_widget(block, chunks[1]);
 		})?;
