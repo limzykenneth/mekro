@@ -73,7 +73,7 @@ pub mod commands{
 					});
 				}
 				None => ()
-			}
+			};
 
 			match child.stderr.take() {
 				Some(stderr) => {
@@ -86,7 +86,7 @@ pub mod commands{
 					});
 				}
 				None => ()
-			}
+			};
 
 			self.child_process = Some(Arc::new(Mutex::new(child)));
 

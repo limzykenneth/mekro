@@ -38,10 +38,10 @@ use commands::commands::Commands;
 
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {
-	let matches = App::new("Micro-manage")
-		.version("0.1.0")
-		.author("Kenneth Lim <limzy.kenneth@gmail.com>")
-		.about("Manage your micro services in dev")
+	let matches = App::new(env!("CARGO_PKG_NAME"))
+		.version(env!("CARGO_PKG_VERSION"))
+		.author(env!("CARGO_PKG_AUTHORS"))
+		.about(env!("CARGO_PKG_DESCRIPTION"))
 		.arg(Arg::with_name("config")
 			.short("c")
 			.long("config")
