@@ -19,6 +19,13 @@ pub mod commands{
 		process::Stdio,
 		sync::{Arc, Mutex}
 	};
+	use nix::{
+		sys::signal::{
+			Signal,
+			killpg
+		},
+		unistd::Pid
+	};
 	use crate::configuration::configuration::{
 		Configuration,
 		parse_configuration
@@ -54,9 +61,25 @@ pub mod commands{
 			// Clear output vector
 			self.output.clone().lock().unwrap().clear();
 
+			// match unsafe{fork()} {
+			// 	Ok(ForkResult::Parent { child, .. }) => {
+			// 		println!("Continuing execution in parent process, new child has pid: {}", child);
+			// 	}
+			// 	Ok(ForkResult::Child) => println!("I'm a new child process"),
+			// 	Err(_) => println!("Fork failed"),
+			// }
+
 			let mut cmd = Cmd::new(self.command);
 			cmd.stdout(Stdio::piped());
 			cmd.args(&self.arguments);
+			unsafe{
+				cmd.pre_exec(move ||{
+					let pid = nix::unistd::getpid();
+					nix::unistd::setpgid(pid, pid)
+						.expect("Failed to set process group ID");
+					Result::Ok(())
+				});
+			}
 
 			let mut child = cmd
 				.spawn()
@@ -104,16 +127,10 @@ pub mod commands{
 		pub async fn kill(&self){
 			let child = self.child_process.clone();
 			let child = child.unwrap();
-			let mut child = child.lock().unwrap();
+			let child = child.lock().unwrap();
 
-			match child.kill().await {
-				Ok(()) => (),
-				Err(e) => {
-					if e.kind() != std::io::ErrorKind::InvalidInput {
-						println!("{:?}", e.kind());
-					}
-				}
-			}
+			killpg(Pid::from_raw(child.id().unwrap() as i32), Signal::SIGINT)
+				.expect("Failed to kill process group");
 		}
 	}
 

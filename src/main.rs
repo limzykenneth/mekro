@@ -34,6 +34,11 @@ use textwrap::{
 	wrap_algorithms::FirstFit
 };
 use clap::{Arg, App};
+use tokio::{
+	process::{
+		Command as Cmd
+	}
+};
 use commands::commands::Commands;
 
 #[derive(Debug)]
@@ -244,6 +249,12 @@ async fn main() -> Result<(), io::Error> {
 	}
 
 	commands.kill().await;
+	let mut reset = Cmd::new("stty")
+		.arg("sane")
+		.spawn()
+		.expect("Able to reset terminal");
+	reset.wait().await?;
 
+	println!("Bye");
 	Ok(())
 }

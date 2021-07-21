@@ -15,3 +15,4 @@ tui = { version = "0.15", default-features = false, features = ['crossterm'] }
 tokio = { version = "1", features = ["full"] }
 textwrap = "0.14"
 clap = "~2.33"
+nix = "0.22"
