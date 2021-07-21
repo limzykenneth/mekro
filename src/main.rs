@@ -99,9 +99,9 @@ async fn main() -> Result<(), io::Error> {
 				}) => {
 					disable_raw_mode().unwrap();
 					execute!(
-                        terminal.backend_mut(),
-                        LeaveAlternateScreen
-                    ).unwrap();
+						terminal.backend_mut(),
+						LeaveAlternateScreen
+					).unwrap();
 					break;
 				},
 				Event::Key(KeyEvent {
@@ -185,9 +185,9 @@ async fn main() -> Result<(), io::Error> {
 
 		terminal.draw(|f| {
 			let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
-                .split(f.size());
+				.direction(Direction::Horizontal)
+				.constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+				.split(f.size());
 
 			let list = List::new(commands.items.clone())
 				.block(Block::default()

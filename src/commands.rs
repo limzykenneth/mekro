@@ -6,10 +6,9 @@ pub mod commands{
 	use tokio::{
 		process::{
 			Command as Cmd,
-			Child,
-			ChildStdout
+			Child
 		},
-		io::{BufReader, AsyncBufReadExt, Lines},
+		io::{BufReader, AsyncBufReadExt},
 		sync::{
 			mpsc::{channel as mpscChannel, Sender, Receiver},
 			Mutex as TokioMutex
@@ -34,7 +33,6 @@ pub mod commands{
 	#[derive(Debug)]
 	pub struct Command<'a>{
 		pub child_process: Option<Arc<Mutex<Child>>>,
-		pub stdout: Option<Lines<BufReader<ChildStdout>>>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
 		pub output: Arc<Mutex<Vec<String>>>,
@@ -48,7 +46,6 @@ pub mod commands{
 
 			Command {
 				child_process: None,
-				stdout: None,
 				command: config.command,
 				arguments: config.arguments.clone(),
 				output: Arc::new(Mutex::new(vec!())),
@@ -59,7 +56,7 @@ pub mod commands{
 
 		pub async fn run(&mut self){
 			// Clear output vector
-			self.output.clone().lock().unwrap().clear();
+			self.output.lock().unwrap().clear();
 
 			let mut cmd = Cmd::new(self.command);
 			cmd.stdout(Stdio::piped());
@@ -118,9 +115,7 @@ pub mod commands{
 		}
 
 		pub async fn kill(&self){
-			let child = self.child_process.clone();
-			let child = child.unwrap();
-			let child = child.lock().unwrap();
+			let child = self.child_process.as_ref().unwrap().lock().unwrap();
 
 			killpg(Pid::from_raw(child.id().unwrap() as i32), Signal::SIGINT)
 				.expect("Failed to kill process group");
