@@ -16,3 +16,4 @@ tokio = { version = "1", features = ["full"] }
 textwrap = "0.14"
 clap = "~2.33"
 nix = "0.22"
+console = "0.14.1"

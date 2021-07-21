@@ -39,6 +39,7 @@ use tokio::{
 		Command as Cmd
 	}
 };
+use console::strip_ansi_codes;
 use commands::commands::Commands;
 
 #[derive(Debug)]
@@ -219,6 +220,7 @@ async fn main() -> Result<(), io::Error> {
 									paragraph_height += wrapped_lines.len();
 
 									for line in wrapped_lines {
+										let line = strip_ansi_codes(&line).into_owned();
 										display_text.push(Spans::from(Span::raw(line)))
 									}
 								});
