@@ -63,7 +63,7 @@ pub mod commands{
 			cmd.stderr(Stdio::piped());
 			cmd.args(&self.arguments);
 			unsafe{
-				cmd.pre_exec(move ||{
+				cmd.pre_exec(|| {
 					let pid = nix::unistd::getpid();
 					nix::unistd::setpgid(pid, pid)
 						.expect("Failed to set process group ID");
