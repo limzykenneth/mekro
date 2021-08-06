@@ -21,7 +21,7 @@ pub mod commands{
 		sys::{
 			signal::{
 				Signal,
-				kill
+				killpg
 			},
 			stat
 		},
@@ -154,7 +154,7 @@ pub mod commands{
 		}
 
 		pub async fn kill(&self){
-			kill(self.child_pid.unwrap(), Signal::SIGINT).unwrap();
+			killpg(self.child_pid.unwrap(), Signal::SIGINT).unwrap();
 		}
 	}
 
