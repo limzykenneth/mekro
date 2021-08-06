@@ -202,6 +202,7 @@ dependencies = [
  "clap",
  "console",
  "crossterm",
+ "libc",
  "nix",
  "serde",
  "serde_json",

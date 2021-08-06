@@ -205,12 +205,15 @@ async fn main() -> Result<(), io::Error> {
 			match current_page {
 				Page::Output => {
 					let mut paragraph_height = 0;
-					let mut display_text: Vec<Spans> = vec!();
+					let mut display_text: Vec<Spans> = vec![];
 					let command_output: Vec<String>;
 
 					match commands.state.selected() {
 						Some(i) => {
 							command_output = commands.commands[i].output.lock().unwrap().to_vec();
+							// display_text = vec![
+							// 	Spans::from(Span::raw(command_output))
+							// ];
 							command_output.iter()
 								.for_each(|line| {
 									let options = WrapOptions::new((chunks[1].width-2) as usize)
@@ -251,11 +254,11 @@ async fn main() -> Result<(), io::Error> {
 	}
 
 	commands.kill().await;
-	let mut reset = Cmd::new("stty")
-		.arg("sane")
-		.spawn()
-		.expect("Able to reset terminal");
-	reset.wait().await?;
+	// let mut reset = Cmd::new("stty")
+	// 	.arg("sane")
+	// 	.spawn()
+	// 	.expect("Able to reset terminal");
+	// reset.wait().await?;
 
 	println!("Bye");
 	Ok(())

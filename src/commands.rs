@@ -4,27 +4,52 @@ pub mod commands{
 		style::{Style},
 	};
 	use tokio::{
-		process::{
-			Command as Cmd,
-			Child
-		},
 		io::{BufReader, AsyncBufReadExt},
 		sync::{
 			mpsc::{channel as mpscChannel, Sender, Receiver},
 			Mutex as TokioMutex
-		}
+		},
+		fs::File
 	};
 	use std::{
-		process::Stdio,
-		sync::{Arc, Mutex}
+		sync::{Arc, Mutex},
+		path::Path,
+		ffi::CString,
+		os::unix::io::{FromRawFd, IntoRawFd}
 	};
 	use nix::{
-		sys::signal::{
-			Signal,
-			killpg
+		sys::{
+			signal::{
+				Signal,
+				kill
+			},
+			stat
 		},
-		unistd::Pid
+		unistd::{
+			Pid,
+			fork,
+			ForkResult,
+			dup2
+		},
+		fcntl::{open, OFlag},
+		pty::{
+			grantpt,
+			posix_openpt,
+			ptsname,
+			unlockpt,
+			Winsize
+		},
+		ioctl_none_bad,
+		ioctl_write_ptr_bad
 	};
+	use libc::{
+		STDIN_FILENO,
+		STDOUT_FILENO,
+		STDERR_FILENO,
+		TIOCSCTTY,
+		TIOCSWINSZ
+	};
+
 	use crate::configuration::configuration::{
 		Configuration,
 		parse_configuration
@@ -32,7 +57,7 @@ pub mod commands{
 
 	#[derive(Debug)]
 	pub struct Command<'a>{
-		pub child_process: Option<Arc<Mutex<Child>>>,
+		pub child_pid: Option<Pid>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
 		pub output: Arc<Mutex<Vec<String>>>,
@@ -45,10 +70,10 @@ pub mod commands{
 			let (tx, rx) = mpscChannel(100);
 
 			Command {
-				child_process: None,
+				child_pid: None,
 				command: config.command,
 				arguments: config.arguments.clone(),
-				output: Arc::new(Mutex::new(vec!())),
+				output: Arc::new(Mutex::new(vec![])),
 				tx: Arc::new(tx),
 				rx: Arc::new(TokioMutex::new(rx))
 			}
@@ -58,50 +83,64 @@ pub mod commands{
 			// Clear output vector
 			self.output.lock().unwrap().clear();
 
-			let mut cmd = Cmd::new(self.command);
-			cmd.stdout(Stdio::piped());
-			cmd.stderr(Stdio::piped());
-			cmd.args(&self.arguments);
-			unsafe{
-				cmd.pre_exec(|| {
-					let pid = nix::unistd::getpid();
-					nix::unistd::setpgid(pid, pid)
-						.expect("Failed to set process group ID");
-					Result::Ok(())
+			let master_fd = posix_openpt(OFlag::O_RDWR).unwrap();
+			grantpt(&master_fd).unwrap();
+			unlockpt(&master_fd).unwrap();
+
+			let slave_name = unsafe { ptsname(&master_fd) }.unwrap();
+
+			// nix macro that generates an ioctl call to set window size of pty:
+			ioctl_write_ptr_bad!(set_window_size, TIOCSWINSZ, Winsize);
+
+			// request to "Make the given terminal the controlling terminal of the calling process"
+			ioctl_none_bad!(set_controlling_terminal, TIOCSCTTY);
+
+			unsafe {
+				self.child_pid = Some(match fork() {
+					Ok(ForkResult::Child) => {
+						// Open slave end for pseudoterminal
+						let slave_fd = open(Path::new(&slave_name), OFlag::O_RDWR, stat::Mode::empty()).unwrap();
+
+						// assign stdin, stdout, stderr to the tty
+						dup2(slave_fd, STDIN_FILENO).unwrap();
+						dup2(slave_fd, STDOUT_FILENO).unwrap();
+						dup2(slave_fd, STDERR_FILENO).unwrap();
+						// Become session leader
+						nix::unistd::setsid().unwrap();
+
+						set_controlling_terminal(slave_fd).unwrap();
+
+						let mut args: Vec<CString> = vec![CString::new(self.command).unwrap()];
+						args.append(&mut self.arguments.iter()
+							.map(|argument| {
+								CString::new(argument.to_owned()).unwrap()
+							})
+							.collect()
+						);
+						nix::unistd::execvp(
+							&CString::new(self.command).unwrap(),
+							&args
+						).unwrap();
+
+						// This path shouldn't be executed.
+						std::process::exit(-1);
+					}
+					Ok(ForkResult::Parent { child }) => child,
+					Err(e) => panic!(e),
 				});
 			}
 
-			let mut child = cmd
-				.spawn()
-				.expect("Failed to execute command");
-
-			match child.stdout.take() {
-				Some(stdout) => {
-					let mut stdout = BufReader::new(stdout).lines();
-					let tx = self.tx.clone();
-					tokio::spawn(async move {
-						while let Some(line) = stdout.next_line().await.unwrap() {
-							tx.send(line).await.unwrap();
-						}
-					});
-				}
-				None => ()
+			let tx = self.tx.clone();
+			let master_file = unsafe {
+				File::from_raw_fd(master_fd.into_raw_fd())
 			};
+			let mut stdout = BufReader::new(master_file).lines();
 
-			match child.stderr.take() {
-				Some(stderr) => {
-					let mut stderr = BufReader::new(stderr).lines();
-					let tx = self.tx.clone();
-					tokio::spawn(async move {
-						while let Some(line) = stderr.next_line().await.unwrap() {
-							tx.send(line).await.unwrap();
-						}
-					});
+			tokio::spawn(async move {
+				while let Ok(Some(line)) = stdout.next_line().await {
+					tx.send(line).await.unwrap();
 				}
-				None => ()
-			};
-
-			self.child_process = Some(Arc::new(Mutex::new(child)));
+			});
 
 			let rx = self.rx.clone();
 			let output = self.output.clone();
@@ -115,10 +154,7 @@ pub mod commands{
 		}
 
 		pub async fn kill(&self){
-			let child = self.child_process.as_ref().unwrap().lock().unwrap();
-
-			killpg(Pid::from_raw(child.id().unwrap() as i32), Signal::SIGINT)
-				.expect("Failed to kill process group");
+			kill(self.child_pid.unwrap(), Signal::SIGINT).unwrap();
 		}
 	}
 
