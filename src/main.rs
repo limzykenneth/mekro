@@ -84,7 +84,7 @@ async fn main() -> Result<(), io::Error> {
 		.expect("Failed to enable raw mode");
 
 	// Keeps track of the current page
-	let current_page = Page::Output;
+	let mut current_page = Page::Output;
 
 	loop{
 		// Poll for events every 100 miliseconds
@@ -131,13 +131,13 @@ async fn main() -> Result<(), io::Error> {
 					code: KeyCode::Left,
 					modifiers: KeyModifiers::NONE
 				}) => {
-
+					current_page = Page::Output;
 				},
 				Event::Key(KeyEvent {
 					code: KeyCode::Right,
 					modifiers: KeyModifiers::NONE
 				}) => {
-
+					current_page = Page::Status;
 				},
 
 				// Action on the selected task
@@ -252,7 +252,21 @@ async fn main() -> Result<(), io::Error> {
 					f.render_widget(block, chunks[1]);
 				},
 				Page::Status => {
+					match commands.state.selected() {
+						Some(i) => (),
+						None => ()
+					};
 
+					let block = Paragraph::new(Text::raw(""))
+						.scroll((0, 0))
+						.block(Block::default()
+							.title("Status")
+							.borders(Borders::ALL)
+						)
+						.style(Style::default()
+							.fg(Color::Black));
+
+					f.render_widget(block, chunks[1]);
 				}
 			}
 		})?;
