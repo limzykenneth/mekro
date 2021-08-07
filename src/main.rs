@@ -75,18 +75,24 @@ async fn main() -> Result<(), io::Error> {
 	commands.run().await;
 
 	let mut stdout = io::stdout();
-	execute!(stdout, EnterAlternateScreen).unwrap();
+	execute!(stdout, EnterAlternateScreen)
+		.expect("Failed to enter alternate terminal");
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
 
-	enable_raw_mode().unwrap();
+	enable_raw_mode()
+		.expect("Failed to enable raw mode");
 
+	// Keeps track of the current page
 	let current_page = Page::Output;
 
 	loop{
+		// Poll for events every 100 miliseconds
 		if poll(Duration::from_millis(100)).unwrap() {
 			// It's guaranteed that `read` wont block, because `poll` returned
 			// `Ok(true)`.
+
+			// Event handling
 			match read().unwrap(){
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('c'),
@@ -174,16 +180,20 @@ async fn main() -> Result<(), io::Error> {
 				},
 				_ => ()
 			};
-		} else {
-			// Timeout expired, no `Event` is available
 		}
 
+		// TUI drawing
 		terminal.draw(|f| {
+			// Two panel layout: left for list of commands, right for info
 			let chunks = Layout::default()
 				.direction(Direction::Horizontal)
-				.constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+				.constraints([
+					Constraint::Percentage(20),
+					Constraint::Percentage(80)
+				])
 				.split(f.size());
 
+			// Render left panel content
 			let list = List::new(commands.items.clone())
 				.block(Block::default()
 					.title("Micro Manage")
@@ -197,19 +207,17 @@ async fn main() -> Result<(), io::Error> {
 
 			f.render_stateful_widget(list, chunks[0], &mut commands.state);
 
+			// Render right panel content
 			match current_page {
 				Page::Output => {
 					let mut paragraph_height = 0;
 					let mut display_text: Vec<Spans> = vec![];
-					let command_output: Vec<String>;
 
 					match commands.state.selected() {
 						Some(i) => {
-							command_output = commands.commands[i].output.lock().unwrap().to_vec();
-							// display_text = vec![
-							// 	Spans::from(Span::raw(command_output))
-							// ];
-							command_output.iter()
+							commands.commands[i].output.lock().unwrap()
+								.to_vec()
+								.iter()
 								.for_each(|line| {
 									let options = WrapOptions::new((chunks[1].width-2) as usize)
 										.wrap_algorithm(FirstFit);
@@ -228,6 +236,8 @@ async fn main() -> Result<(), io::Error> {
 						}
 					};
 
+					// Calculate how much to scroll in order to see the last lines
+					// Cast as i32 for negative values
 					let scroll_height = max(paragraph_height as i32 - (chunks[1].height-2) as i32, 0) as u16;
 
 					let block = Paragraph::new(Text::from(display_text))

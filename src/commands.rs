@@ -1,7 +1,6 @@
 pub mod commands{
 	use tui::{
-		widgets::{ListState, ListItem},
-		style::{Style},
+		widgets::{ListState, ListItem}
 	};
 	use tokio::{
 		io::{BufReader, AsyncBufReadExt},
@@ -55,14 +54,19 @@ pub mod commands{
 		parse_configuration
 	};
 
+	// nix macro that generates an ioctl call to set window size of pty:
+	ioctl_write_ptr_bad!(set_window_size, TIOCSWINSZ, Winsize);
+	// request to "Make the given terminal the controlling terminal of the calling process"
+	ioctl_none_bad!(set_controlling_terminal, TIOCSCTTY);
+
 	#[derive(Debug)]
 	pub struct Command<'a>{
-		pub child_pid: Option<Pid>,
 		command: &'a str,
 		arguments: Vec<&'a str>,
-		pub output: Arc<Mutex<Vec<String>>>,
-		pub tx: Arc<Sender<String>>,
-		pub rx: Arc<TokioMutex<Receiver<String>>>
+		child_pid: Option<Pid>,
+		tx: Arc<Sender<String>>,
+		rx: Arc<TokioMutex<Receiver<String>>>,
+		pub output: Arc<Mutex<Vec<String>>>
 	}
 
 	impl Command<'_>{
@@ -70,12 +74,12 @@ pub mod commands{
 			let (tx, rx) = mpscChannel(100);
 
 			Command {
-				child_pid: None,
 				command: config.command,
 				arguments: config.arguments.clone(),
-				output: Arc::new(Mutex::new(vec![])),
+				child_pid: None,
 				tx: Arc::new(tx),
-				rx: Arc::new(TokioMutex::new(rx))
+				rx: Arc::new(TokioMutex::new(rx)),
+				output: Arc::new(Mutex::new(vec![])),
 			}
 		}
 
@@ -83,17 +87,12 @@ pub mod commands{
 			// Clear output vector
 			self.output.lock().unwrap().clear();
 
+			// Create new pty
 			let master_fd = posix_openpt(OFlag::O_RDWR).unwrap();
 			grantpt(&master_fd).unwrap();
 			unlockpt(&master_fd).unwrap();
 
 			let slave_name = unsafe { ptsname(&master_fd) }.unwrap();
-
-			// nix macro that generates an ioctl call to set window size of pty:
-			ioctl_write_ptr_bad!(set_window_size, TIOCSWINSZ, Winsize);
-
-			// request to "Make the given terminal the controlling terminal of the calling process"
-			ioctl_none_bad!(set_controlling_terminal, TIOCSCTTY);
 
 			unsafe {
 				self.child_pid = Some(match fork() {
@@ -130,12 +129,12 @@ pub mod commands{
 				});
 			}
 
-			let tx = self.tx.clone();
 			let master_file = unsafe {
 				File::from_raw_fd(master_fd.into_raw_fd())
 			};
 			let mut stdout = BufReader::new(master_file).lines();
 
+			let tx = self.tx.clone();
 			tokio::spawn(async move {
 				while let Ok(Some(line)) = stdout.next_line().await {
 					tx.send(line).await.unwrap();
@@ -168,15 +167,10 @@ pub mod commands{
 		pub fn new(config: &str) -> Commands {
 			let values: Vec<Configuration> = parse_configuration(config);
 			let commands: Vec<Command> = values.iter()
-				.map(|v| {
-					Command::new(v)
-				})
+				.map(|v| Command::new(v))
 				.collect();
 			let items: Vec<ListItem> = commands.iter()
-				.map(|command| {
-					ListItem::new(command.command)
-						.style(Style::default())
-				})
+				.map(|command| ListItem::new(command.command))
 				.collect();
 
 			Commands {
@@ -192,7 +186,7 @@ pub mod commands{
 			}
 		}
 
-		pub async fn kill(&mut self){
+		pub async fn kill(&self){
 			for command in &self.commands {
 				command.kill().await;
 			}
