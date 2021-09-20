@@ -57,7 +57,7 @@ async fn main() -> Result<(), io::Error> {
 			.takes_value(true)
 		)
 		.get_matches();
-	let config_path = matches.value_of("config").unwrap_or("./example.json");
+	let config_path = matches.value_of("config").unwrap_or("./mekro.config.json");
 	let contents = match fs::read_to_string(config_path) {
 		Ok(result) => result,
 		Err(e) => {

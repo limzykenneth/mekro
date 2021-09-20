@@ -1,5 +1,5 @@
 [package]
-name = "micro-manage"
+name = "mekro"
 version = "0.1.0"
 authors = ["limzykenneth <limzy.kenneth@gmail.com>"]
 edition = "2018"
