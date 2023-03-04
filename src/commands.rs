@@ -61,6 +61,7 @@ pub mod commands{
 
 	#[derive(Debug)]
 	pub struct Command<'a>{
+		name: &'a str,
 		command: &'a str,
 		arguments: Vec<&'a str>,
 		child_pid: Option<Pid>,
@@ -74,6 +75,7 @@ pub mod commands{
 			let (tx, rx) = mpscChannel(100);
 
 			Command {
+				name: config.name,
 				command: config.command,
 				arguments: config.arguments.clone(),
 				child_pid: None,
@@ -125,7 +127,7 @@ pub mod commands{
 						std::process::exit(-1);
 					}
 					Ok(ForkResult::Parent { child }) => child,
-					Err(e) => panic!(e),
+					Err(e) => panic!("{}", e),
 				});
 			}
 
@@ -170,7 +172,7 @@ pub mod commands{
 				.map(|v| Command::new(v))
 				.collect();
 			let items: Vec<ListItem> = commands.iter()
-				.map(|command| ListItem::new(command.command))
+				.map(|command| ListItem::new(command.name))
 				.collect();
 
 			Commands {

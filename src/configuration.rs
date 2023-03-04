@@ -4,6 +4,7 @@ pub mod configuration{
 
 	#[derive(Serialize, Deserialize, Debug)]
 	pub struct Configuration<'a>{
+		pub name: &'a str,
 		pub command: &'a str,
 		pub arguments: Vec<&'a str>
 	}

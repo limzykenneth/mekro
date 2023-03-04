@@ -253,7 +253,7 @@ async fn main() -> Result<(), io::Error> {
 				},
 				Page::Status => {
 					match commands.state.selected() {
-						Some(i) => (),
+						Some(_) => (),
 						None => ()
 					};
 
