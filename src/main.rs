@@ -18,7 +18,7 @@ use tui::{
 };
 use crossterm::{
 	event::{
-		poll, read, Event, KeyCode, KeyEvent, KeyModifiers
+		self, Event, KeyCode, KeyEvent, KeyModifiers
 	},
 	terminal::{
 		disable_raw_mode,
@@ -57,7 +57,9 @@ async fn main() -> Result<(), io::Error> {
 			.takes_value(true)
 		)
 		.get_matches();
+	// If config option is not provided, use default file name
 	let config_path = matches.value_of("config").unwrap_or("./mekro.config.json");
+	// Read config file
 	let contents = match fs::read_to_string(config_path) {
 		Ok(result) => result,
 		Err(e) => {
@@ -71,15 +73,22 @@ async fn main() -> Result<(), io::Error> {
 		}
 	};
 
+	// Create main commands object
 	let mut commands = Commands::new(&contents);
+	// Start running all commands
 	commands.run().await;
 
+
+	// Prepare UI
 	let mut stdout = io::stdout();
 	execute!(stdout, EnterAlternateScreen)
 		.expect("Failed to enter alternate terminal");
 	let backend = CrosstermBackend::new(stdout);
-	let mut terminal = Terminal::new(backend)?;
+	let mut terminal = Terminal::new(backend)
+		.expect("Failed to start output terminal");
 
+	// Enable raw mode to process raw keyboard events
+	// Required for arrow keys navigation
 	enable_raw_mode()
 		.expect("Failed to enable raw mode");
 
@@ -88,12 +97,12 @@ async fn main() -> Result<(), io::Error> {
 
 	loop{
 		// Poll for events every 100 miliseconds
-		if poll(Duration::from_millis(100)).unwrap() {
-			// It's guaranteed that `read` wont block, because `poll` returned
-			// `Ok(true)`.
+		if event::poll(Duration::from_millis(100)).unwrap() {
+			// It's guaranteed that `read` wont block, because `poll` returns `Ok(true)`.
 
 			// Event handling
-			match read().unwrap(){
+			match event::read().unwrap(){
+				// 'Ctrl+c' - quit mekro
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('c'),
 					modifiers: KeyModifiers::CONTROL
@@ -105,6 +114,8 @@ async fn main() -> Result<(), io::Error> {
 					).unwrap();
 					break;
 				},
+
+				// 'Esc' - clear selection
 				Event::Key(KeyEvent {
 					code: KeyCode::Esc,
 					modifiers: KeyModifiers::NONE
@@ -112,7 +123,7 @@ async fn main() -> Result<(), io::Error> {
 					commands.unselect();
 				},
 
-				// Navigate between the different tasks
+				// Up/Down arrows - navigate between the different tasks
 				Event::Key(KeyEvent {
 					code: KeyCode::Down,
 					modifiers: KeyModifiers::NONE
@@ -126,7 +137,7 @@ async fn main() -> Result<(), io::Error> {
 					commands.previous();
 				},
 
-				// Navigate between pages
+				// Left/Right arrows - navigate between pages
 				Event::Key(KeyEvent {
 					code: KeyCode::Left,
 					modifiers: KeyModifiers::NONE
@@ -141,7 +152,7 @@ async fn main() -> Result<(), io::Error> {
 				},
 
 				// Action on the selected task
-				// Start
+				// 's' - start process (after it has been killed)
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('s'),
 					modifiers: KeyModifiers::NONE
@@ -153,7 +164,8 @@ async fn main() -> Result<(), io::Error> {
 						None => ()
 					}
 				},
-				// Kill
+
+				// 'k' - kill process
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('k'),
 					modifiers: KeyModifiers::NONE
@@ -165,7 +177,7 @@ async fn main() -> Result<(), io::Error> {
 						None => ()
 					}
 				},
-				// Restart
+				// 'r' - restart process (kill then start)
 				Event::Key(KeyEvent {
 					code: KeyCode::Char('r'),
 					modifiers: KeyModifiers::NONE
@@ -178,6 +190,8 @@ async fn main() -> Result<(), io::Error> {
 						None => ()
 					}
 				},
+
+				// Everything else - no-op
 				_ => ()
 			};
 		}
@@ -209,6 +223,7 @@ async fn main() -> Result<(), io::Error> {
 
 			// Render right panel content
 			match current_page {
+				// Command output page
 				Page::Output => {
 					let mut paragraph_height = 0;
 					let mut display_text: Vec<Spans> = vec![];
@@ -216,9 +231,9 @@ async fn main() -> Result<(), io::Error> {
 					match commands.state.selected() {
 						Some(i) => {
 							commands.commands[i].output.lock().unwrap()
-								.to_vec()
 								.iter()
 								.for_each(|line| {
+									// display_text.push(Spans::from(Span::raw(line.clone())))
 									let options = WrapOptions::new((chunks[1].width-2) as usize)
 										.wrap_algorithm(FirstFit);
 									let wrapped_lines = wrap(&line, &options);
@@ -251,6 +266,8 @@ async fn main() -> Result<(), io::Error> {
 
 					f.render_widget(block, chunks[1]);
 				},
+
+				// Command status page
 				Page::Status => {
 					match commands.state.selected() {
 						Some(_) => (),

@@ -1,7 +1,5 @@
 pub mod commands{
-	use tui::{
-		widgets::{ListState, ListItem}
-	};
+	use tui::widgets::{ListState, ListItem};
 	use tokio::{
 		io::{BufReader, AsyncBufReadExt},
 		sync::{
@@ -48,6 +46,7 @@ pub mod commands{
 		TIOCSCTTY,
 		TIOCSWINSZ
 	};
+	use terminal_size::{Width, Height, terminal_size};
 
 	use crate::configuration::configuration::{
 		Configuration,
@@ -102,6 +101,17 @@ pub mod commands{
 						// Open slave end for pseudoterminal
 						let slave_fd = open(Path::new(&slave_name), OFlag::O_RDWR, stat::Mode::empty()).unwrap();
 
+						let size = terminal_size();
+						if let Some((Width(w), Height(h))) = size {
+							let winsize = Winsize {
+								ws_row: h,
+								ws_col: (w as f32 * 0.8).floor() as u16 - 2,
+								ws_xpixel: 0,
+								ws_ypixel: 0,
+							};
+							set_window_size(slave_fd.into_raw_fd(), &winsize).unwrap();
+						}
+
 						// assign stdin, stdout, stderr to the tty
 						dup2(slave_fd, STDIN_FILENO).unwrap();
 						dup2(slave_fd, STDOUT_FILENO).unwrap();
@@ -136,6 +146,7 @@ pub mod commands{
 			};
 			let mut stdout = BufReader::new(master_file).lines();
 
+			// MPSC sender
 			let tx = self.tx.clone();
 			tokio::spawn(async move {
 				while let Ok(Some(line)) = stdout.next_line().await {
@@ -143,6 +154,7 @@ pub mod commands{
 				}
 			});
 
+			// MPSC receiver
 			let rx = self.rx.clone();
 			let output = self.output.clone();
 			tokio::spawn(async move {
@@ -155,6 +167,8 @@ pub mod commands{
 		}
 
 		pub async fn kill(&self){
+			// NOTE: Look into macOS behaviour (leaving orphan processes)
+			// https://superuser.com/questions/99789/when-a-python-process-is-killed-on-os-x-why-doesnt-it-kill-the-child-processes
 			killpg(self.child_pid.unwrap(), Signal::SIGINT).unwrap();
 		}
 	}
